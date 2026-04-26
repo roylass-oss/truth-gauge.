@@ -15,46 +15,37 @@ def analyze():
         text = data.get("text", "")
         api_key = os.environ.get("GEMINI_API_KEY")
         
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # שימוש במודל gemini-pro - הוא הכי יציב בשיטה הזו
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
         
         payload = {
             "contents": [{
                 "parts": [{
                     "text": f"Analyze this Hebrew text for reliability. Return ONLY a JSON object with: 'score' (0-100), 'reason' (short Hebrew explanation), 'color' (Red/Yellow/Green). Text: {text}"
                 }]
-            }],
-            "safetySettings": [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-            ]
+            }]
         }
         
         headers = {'Content-Type': 'application/json'}
         response = requests.post(url, headers=headers, json=payload)
         res_data = response.json()
         
-        # בדיקה אם יש שגיאה בתשובה של גוגל
+        # אם יש שגיאה מהשרת של גוגל
         if 'error' in res_data:
-            return jsonify({"score": 0, "reason": f"שגיאת API: {res_data['error']['message']}", "color": "Red"})
+            return jsonify({"score": 0, "reason": f"גוגל אומר: {res_data['error']['message']}", "color": "Red"})
 
-        # שליפת התוכן בזהירות
+        # שליפת הטקסט
         try:
-            candidates = res_data.get('candidates', [])
-            if not candidates:
-                return jsonify({"score": 50, "reason": "גוגל חסם את התוכן מסיבות בטיחות", "color": "Yellow"})
-                
-            raw_content = candidates[0]['content']['parts'][0]['text']
+            raw_content = res_data['candidates'][0]['content']['parts'][0]['text']
             
             # חילוץ ה-JSON
             json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
             if json_match:
                 return jsonify(json.loads(json_match.group()))
             else:
-                return jsonify({"score": 100, "reason": "המידע נראה אמין", "color": "Green"})
-        except (KeyError, Index) as e:
-             return jsonify({"score": 50, "reason": "תשובה לא צפויה מה-AI", "color": "Yellow"})
+                return jsonify({"score": 100, "reason": "ניתוח הושלם", "color": "Green"})
+        except:
+            return jsonify({"score": 50, "reason": "תשובה לא צפויה מה-AI", "color": "Yellow"})
 
     except Exception as e:
         return jsonify({"score": 0, "reason": f"שגיאה: {str(e)[:30]}", "color": "Red"})
