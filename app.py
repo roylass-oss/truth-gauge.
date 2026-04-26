@@ -15,13 +15,13 @@ def analyze():
         text = data.get("text", "")
         api_key = os.environ.get("GEMINI_API_KEY")
         
-        # שימוש במודל gemini-pro - הוא הכי יציב בשיטה הזו
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+        # כתובת ה-API היציבה והמעודכנת ביותר (v1)
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={api_key}"
         
         payload = {
             "contents": [{
                 "parts": [{
-                    "text": f"Analyze this Hebrew text for reliability. Return ONLY a JSON object with: 'score' (0-100), 'reason' (short Hebrew explanation), 'color' (Red/Yellow/Green). Text: {text}"
+                    "text": f"Analyze this Hebrew text for reliability. Return ONLY a JSON object with: 'score' (number 0-100), 'reason' (short Hebrew explanation), 'color' (Red/Yellow/Green). Text: {text}"
                 }]
             }]
         }
@@ -32,23 +32,22 @@ def analyze():
         
         # אם יש שגיאה מהשרת של גוגל
         if 'error' in res_data:
-            return jsonify({"score": 0, "reason": f"גוגל אומר: {res_data['error']['message']}", "color": "Red"})
+            error_msg = res_data['error'].get('message', 'Unknown Error')
+            return jsonify({"score": 0, "reason": f"גוגל אומר: {error_msg}", "color": "Red"})
 
-        # שליפת הטקסט
-        try:
+        # חילוץ התוכן
+        if 'candidates' in res_data and len(res_data['candidates']) > 0:
             raw_content = res_data['candidates'][0]['content']['parts'][0]['text']
             
-            # חילוץ ה-JSON
+            # חילוץ ה-JSON בעזרת Regex
             json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
             if json_match:
                 return jsonify(json.loads(json_match.group()))
-            else:
-                return jsonify({"score": 100, "reason": "ניתוח הושלם", "color": "Green"})
-        except:
-            return jsonify({"score": 50, "reason": "תשובה לא צפויה מה-AI", "color": "Yellow"})
+        
+        return jsonify({"score": 50, "reason": "לא התקבלה תשובה תקינה מה-AI", "color": "Yellow"})
 
     except Exception as e:
-        return jsonify({"score": 0, "reason": f"שגיאה: {str(e)[:30]}", "color": "Red"})
+        return jsonify({"score": 0, "reason": f"תקלה טכנית: {str(e)[:30]}", "color": "Red"})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
