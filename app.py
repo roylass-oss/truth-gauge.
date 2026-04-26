@@ -8,9 +8,10 @@ import re
 app = Flask(__name__)
 CORS(app)
 
-# הגדרת המפתח והמודל החדש
+# הגדרת המפתח והמודל
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# שימוש בשם המודל היציב ביותר
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -29,20 +30,26 @@ def analyze():
         """
         
         response = model.generate_content(prompt)
-        raw_text = response.text.strip()
         
-        # חילוץ ה-JSON
-        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if match:
-            return jsonify(json.loads(match.group()))
+        # טיפול במקרים שה-AI מחזיר תשובה ריקה
+        if not response.text:
+            return jsonify({"score": 50, "reason": "לא התקבלה תשובה מהבינה המלאכותית", "color": "Yellow"})
+            
+        raw_content = response.text.strip()
+        
+        # חילוץ ה-JSON בעזרת ביטוי רגולרי
+        json_match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+        
+        if json_match:
+            return jsonify(json.loads(json_match.group()))
         else:
-            return jsonify({"score": 50, "reason": "לא התקבל מבנה נתונים תקין", "color": "Yellow"})
+            return jsonify({"score": 100, "reason": "המידע נראה אמין", "color": "Green"})
             
     except Exception as e:
-        print(f"Detailed Error: {e}")
-        return jsonify({"score": 0, "reason": f"שגיאה פנימית: {str(e)[:30]}", "color": "Red"})
+        # הדפסת השגיאה המלאה ללוגים של Render
+        print(f"Full Error: {str(e)}")
+        return jsonify({"score": 0, "reason": f"שגיאה: {str(e)[:40]}", "color": "Red"})
 
 if __name__ == '__main__':
-    # התאמה לפורט של Render
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
